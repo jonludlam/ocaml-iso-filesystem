@@ -26,8 +26,11 @@ let th =
   read_whole_file Sys.argv.(1)
   >>= fun x ->
   let sect = Cstruct.sub x 32768 2048 in
-  let pvd = Records.unmarshal_primary_volume_descriptor sect in
-  Records.print_pvd pvd;
+  Records.unmarshal_primary_volume_descriptor sect |>
+  (function | Some pvd -> Records.print_pvd pvd | None -> ());
+  let sect = Cstruct.sub x (32768+2048) 2048 in
+  Records.unmarshal_primary_volume_descriptor sect |>
+  (function | None -> Printf.printf "Got none!\n%!" | _ -> failwith "ack");
   Lwt.return ()
 
 let _ =

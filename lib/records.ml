@@ -105,11 +105,22 @@ let unmarshal_primary_volume_descriptor (buf : Cstruct.t) =
     let copyright = Cstruct.to_string (get_pvd_copyright pvd) in
     let abstract_file_id = Cstruct.to_string (get_pvd_abstract_file_id pvd) in
     let biblio_file_id = Cstruct.to_string (get_pvd_biblio_file_id pvd) in
-    { system_id; volume_id; size; vol_set_size; vol_seq_no; block_size;
+    Some { system_id; volume_id; size; vol_set_size; vol_seq_no; block_size;
       path_table_size; path_table_l_loc = Some path_table_l_loc; opt_path_table_l_loc = Some opt_path_table_l_loc;
       path_table_m_loc = None; opt_path_table_m_loc = None;
       volume_set_id; publisher_id; data_preparer_id; app_id; copyright; abstract_file_id;
       biblio_file_id }
+  | Some BOOT_RECORD ->
+    Printf.printf "boot record\n%!";
+    None
+  | Some SUPPLEMENTARY_VOLUME_DESCRIPTOR ->
+    Printf.printf "supp\n%!";
+    None
+  | Some VOLUME_PARTITION_DESCRIPTOR ->
+    Printf.printf "vol_part\n%!";
+    None
+  | Some VOLUME_DESCRIPTOR_SET_TERMINATOR ->
+    None
   | None ->
     failwith "Unknown type!"
 
