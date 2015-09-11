@@ -1,0 +1,24 @@
+OASISFormat: 0.4
+Name:        iso9660-filesystem
+Version:     0.1
+Synopsis:    ISO9660 filesystem manipulation
+Authors:     Jon Ludlam
+License:     ISC
+Plugins:     META (0.4)
+BuildTools:  ocamlbuild
+
+Library iso
+  Pack:               true
+  CompiledObject:     best
+  Path:               lib
+  Findlibname:        iso-filesystem
+  Modules:            Records
+  BuildDepends:       cstruct, re, re.str, mirage-types, lwt
+
+Executable test
+  CompiledObject:     best
+  Path:               lib_test
+  MainIs:             test.ml
+  Custom:             true
+  Install:            false
+  BuildDepends:       lwt, lwt.unix, iso-filesystem, cstruct, oUnit, mirage-block-unix, io-page, io-page.unix
