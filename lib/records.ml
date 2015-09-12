@@ -55,6 +55,49 @@ let int16_of_lsb_msb v =
   | 0, x -> x
   | x, y -> if x<>y then raise Invalid_coding else x
 
+cstruct directory {
+    uint8_t len;
+    uint8_t ext_len;
+    uint8_t location_lsb_msb[8];
+    uint8_t data_len_lsb_msb[8];
+    uint8_t date[7];
+    uint8_t flags;
+    uint8_t file_unit_size;
+    uint8_t gap_size;
+    uint8_t vol_seq_lsb_msb[4];
+    uint8_t filename_length;
+    uint8_t filename_start;
+} as little_endian
+
+type dir = {
+    len : int;
+    ext_len : int;
+    location : Int32.t;
+    data_len : Int32.t;
+    date : unit;
+    flags : int;
+    file_unit_size : int;
+    gap_size : int;
+    vol_seq : int;
+    filename : string;
+}
+
+let unmarshal_directory v =
+  let len = get_directory_len v in
+  let ext_len = get_directory_ext_len v in
+  let location = int32_of_lsb_msb (get_directory_location_lsb_msb v) in
+  let data_len = int32_of_lsb_msb (get_directory_data_len_lsb_msb v) in
+  let date = () in
+  let flags = get_directory_flags v in
+  let file_unit_size = get_directory_file_unit_size v in
+  let gap_size = get_directory_gap_size v in
+  let vol_seq = int16_of_lsb_msb (get_directory_vol_seq_lsb_msb v) in
+  let filename_len = get_directory_filename_length v in
+  let filename = Cstruct.to_string (Cstruct.sub v 33 (filename_len)) in
+  { len; ext_len; location; data_len; date; flags; file_unit_size; gap_size; vol_seq; filename }
+
+
+
 cstruct volume_descriptor {
     uint8_t ty;
     uint8_t id[5];
