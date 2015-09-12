@@ -35,6 +35,26 @@ cenum volume_descriptor_type {
     VOLUME_DESCRIPTOR_SET_TERMINATOR=255;
 } as uint8_t
 
+(* Some Iso9660 are stored as both big and little endian values.
+   This exception is raised if they're not the same (when non-zero) *)
+exception Invalid_coding
+
+let int32_of_lsb_msb v =
+  let lsb = Cstruct.LE.get_uint32 v 0 in
+  let msb = Cstruct.BE.get_uint32 v 4 in
+  match lsb, msb with
+  | x, 0l -> x
+  | 0l, x -> x
+  | x, y -> if x<>y then raise Invalid_coding else x
+
+let int16_of_lsb_msb v =
+  let lsb = Cstruct.LE.get_uint16 v 0 in
+  let msb = Cstruct.BE.get_uint16 v 2 in
+  match lsb, msb with
+  | x, 0 -> x
+  | 0, x -> x
+  | x, y -> if x<>y then raise Invalid_coding else x
+
 cstruct volume_descriptor {
     uint8_t ty;
     uint8_t id[5];
@@ -52,17 +72,12 @@ cstruct pvd {
     uint8_t system_id[32];
     uint8_t volume_id[32];
     uint8_t unused1[8];
-    uint32_t size_LSB;
-    uint32_t size_MSB;
+    uint8_t size_lsb_msb[8];
     uint8_t unused2[32];
-    uint16_t vol_set_size_LSB;
-    uint16_t vol_set_size_MSB;
-    uint16_t vol_seq_no_LSB;
-    uint16_t vol_seq_no_MSB;
-    uint16_t block_size_LSB;
-    uint16_t block_size_MSB;
-    uint32_t path_table_size_LSB;
-    uint32_t path_table_size_MSB;
+    uint8_t vol_set_size_lsb_msb[4];
+    uint8_t vol_seq_no_lsb_msb[4];
+    uint8_t block_size_lsb_msb[4];
+    uint8_t path_table_size_lsb_msb[8];
     uint32_t l_path_table;
     uint32_t opt_l_path_table;
     uint32_t m_path_table;
@@ -90,11 +105,11 @@ let unmarshal_primary_volume_descriptor (buf : Cstruct.t) =
     let pvd = get_volume_descriptor_data buf in
     let system_id = Cstruct.to_string (get_pvd_system_id pvd) in
     let volume_id = Cstruct.to_string (get_pvd_volume_id pvd) in
-    let size = get_pvd_size_LSB pvd in
-    let vol_set_size = get_pvd_vol_set_size_LSB pvd in
-    let vol_seq_no = get_pvd_vol_seq_no_LSB pvd in
-    let block_size = get_pvd_block_size_LSB pvd in
-    let path_table_size = get_pvd_path_table_size_LSB pvd in
+    let size = int32_of_lsb_msb (get_pvd_size_lsb_msb pvd) in
+    let vol_set_size = int16_of_lsb_msb (get_pvd_vol_set_size_lsb_msb pvd) in
+    let vol_seq_no = int16_of_lsb_msb (get_pvd_vol_seq_no_lsb_msb pvd) in
+    let block_size = int16_of_lsb_msb (get_pvd_block_size_lsb_msb pvd) in
+    let path_table_size = int32_of_lsb_msb (get_pvd_path_table_size_lsb_msb pvd) in
     let path_table_l_loc = get_pvd_l_path_table pvd in
     let opt_path_table_l_loc = get_pvd_opt_l_path_table pvd in
     let root_directory = get_pvd_root_directory pvd in
