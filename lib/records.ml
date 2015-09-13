@@ -4,6 +4,21 @@ type strA (* A-Z, 0-9, !, '\"' % & '\'' ( ) * + , - . / : ; < = > ? *)
 
 type strD (* A-Z, 0-9, _ *)
 
+type flags = | Hidden | Directory | AssociatedFile | Format | Perms | Final
+
+type dir = {
+  len : int;
+  ext_len : int;
+  location : Int32.t;
+  data_len : Int32.t;
+  date : unit;
+  flags : int;
+  file_unit_size : int;
+  gap_size : int;
+  vol_seq : int;
+  filename : string;
+}
+
 type primary_volume_descriptor = {
   system_id : string;
   volume_id : string;
@@ -16,6 +31,7 @@ type primary_volume_descriptor = {
   opt_path_table_l_loc : Int32.t option;
   path_table_m_loc : Int32.t option;
   opt_path_table_m_loc : Int32.t option;
+  root_dir : dir;
   volume_set_id : string;
   publisher_id : string;
   data_preparer_id : string;
@@ -69,19 +85,6 @@ cstruct directory {
     uint8_t filename_start;
 } as little_endian
 
-type dir = {
-    len : int;
-    ext_len : int;
-    location : Int32.t;
-    data_len : Int32.t;
-    date : unit;
-    flags : int;
-    file_unit_size : int;
-    gap_size : int;
-    vol_seq : int;
-    filename : string;
-}
-
 let unmarshal_directory v =
   let len = get_directory_len v in
   let ext_len = get_directory_ext_len v in
@@ -96,6 +99,24 @@ let unmarshal_directory v =
   let filename = Cstruct.to_string (Cstruct.sub v 33 (filename_len)) in
   { len; ext_len; location; data_len; date; flags; file_unit_size; gap_size; vol_seq; filename }
 
+let maybe_unmarshal_directory v =
+  let len = get_directory_len v in
+  if len = 0 then None else begin
+    Some (unmarshal_directory v)
+  end
+
+let print_directory d =
+  let fields = [
+    "len", string_of_int d.len;
+    "ext_len", string_of_int d.ext_len;
+    "location", Int32.to_string d.location;
+    "data_len", Int32.to_string d.data_len;
+    "flags", string_of_int d.flags;
+    "file_unit_size", string_of_int d.file_unit_size;
+    "gap_size", string_of_int d.gap_size;
+    "vol_seq", string_of_int d.vol_seq;
+    "filename", d.filename ] in
+  List.iter (fun (k,v) -> Printf.printf "%s: %s\n" k v) fields
 
 
 cstruct volume_descriptor {
@@ -155,7 +176,7 @@ let unmarshal_primary_volume_descriptor (buf : Cstruct.t) =
     let path_table_size = int32_of_lsb_msb (get_pvd_path_table_size_lsb_msb pvd) in
     let path_table_l_loc = get_pvd_l_path_table pvd in
     let opt_path_table_l_loc = get_pvd_opt_l_path_table pvd in
-    let root_directory = get_pvd_root_directory pvd in
+    let root_dir = unmarshal_directory (get_pvd_root_directory pvd) in
     let volume_set_id = Cstruct.to_string (get_pvd_volume_set_id pvd) in
     let publisher_id = Cstruct.to_string (get_pvd_publisher_id pvd) in
     let data_preparer_id = Cstruct.to_string (get_pvd_data_preparer_id pvd) in
@@ -165,7 +186,7 @@ let unmarshal_primary_volume_descriptor (buf : Cstruct.t) =
     let biblio_file_id = Cstruct.to_string (get_pvd_biblio_file_id pvd) in
     Some { system_id; volume_id; size; vol_set_size; vol_seq_no; block_size;
       path_table_size; path_table_l_loc = Some path_table_l_loc; opt_path_table_l_loc = Some opt_path_table_l_loc;
-      path_table_m_loc = None; opt_path_table_m_loc = None;
+      path_table_m_loc = None; opt_path_table_m_loc = None; root_dir;
       volume_set_id; publisher_id; data_preparer_id; app_id; copyright; abstract_file_id;
       biblio_file_id }
   | Some BOOT_RECORD ->
@@ -208,4 +229,6 @@ let print_pvd pvd =
                 "biblio_file_id", pvd.biblio_file_id;
                ]
   in
-  List.iter (fun (k,v) -> Printf.printf "%s: %s\n" k v) fields
+  List.iter (fun (k,v) -> Printf.printf "%s: %s\n" k v) fields;
+  Printf.printf "root_dir:\n";
+  print_directory pvd.root_dir

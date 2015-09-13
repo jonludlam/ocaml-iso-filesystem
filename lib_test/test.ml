@@ -31,6 +31,17 @@ let th =
   let sect = Cstruct.sub x (32768+2048) 2048 in
   Records.unmarshal_primary_volume_descriptor sect |>
   (function | None -> Printf.printf "Got none!\n%!" | _ -> failwith "ack");
+  let rec get_dirs prefix lba n =
+    let sect = Cstruct.sub x (lba*2048) 2048 in
+    let dir_opt = Records.maybe_unmarshal_directory (Cstruct.sub sect n (2048 - n)) in
+    match dir_opt with
+    | None -> ()
+    | Some dir ->
+      Printf.printf "%s%s %d %d\n" prefix dir.Records.filename lba n;
+      if dir.Records.flags=2 && (String.length dir.Records.filename > 1)
+      then get_dirs (Printf.sprintf "%s  " prefix) (Int32.to_int dir.Records.location) 0;
+      get_dirs prefix lba (n+dir.Records.len)
+  in get_dirs "" 29 0;
   Lwt.return ()
 
 let _ =
