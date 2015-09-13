@@ -6,6 +6,12 @@ type strD (* A-Z, 0-9, _ *)
 
 type flags = | Hidden | Directory | AssociatedFile | Format | Perms | Final
 
+type susp_entry = {
+  signature : string;
+  version : int;
+  data : Cstruct.t;
+}
+
 type dir = {
   len : int;
   ext_len : int;
@@ -17,6 +23,7 @@ type dir = {
   gap_size : int;
   vol_seq : int;
   filename : string;
+  susp : susp_entry list;
 }
 
 type primary_volume_descriptor = {
@@ -71,6 +78,12 @@ let int16_of_lsb_msb v =
   | 0, x -> x
   | x, y -> if x<>y then raise Invalid_coding else x
 
+cstruct susp {
+    uint8_t signature[2];
+    uint8_t len;
+    uint8_t version;
+} as little_endian
+
 cstruct directory {
     uint8_t len;
     uint8_t ext_len;
@@ -85,8 +98,11 @@ cstruct directory {
     uint8_t filename_start;
 } as little_endian
 
+let roundup n = if n mod 2 = 1 then n+1 else n
+
 let unmarshal_directory v =
   let len = get_directory_len v in
+  Printf.printf "XXX len=%d\n%!" len;
   let ext_len = get_directory_ext_len v in
   let location = int32_of_lsb_msb (get_directory_location_lsb_msb v) in
   let data_len = int32_of_lsb_msb (get_directory_data_len_lsb_msb v) in
@@ -97,7 +113,20 @@ let unmarshal_directory v =
   let vol_seq = int16_of_lsb_msb (get_directory_vol_seq_lsb_msb v) in
   let filename_len = get_directory_filename_length v in
   let filename = Cstruct.to_string (Cstruct.sub v 33 (filename_len)) in
-  { len; ext_len; location; data_len; date; flags; file_unit_size; gap_size; vol_seq; filename }
+  let rec unmarshal_susps n =
+    Printf.printf "XXX n=%d\n%!" n;
+    if n>=len-1 then [] else begin
+      let susp_header = Cstruct.sub v n 4 in
+      let signature = Cstruct.to_string (get_susp_signature susp_header) in
+      Printf.printf "XXX signature=%s\n%!" signature;
+      let len = get_susp_len susp_header in
+      let version = get_susp_version susp_header in
+      let data = Cstruct.sub v (n+4) (len-4) in
+      { signature; version; data } :: unmarshal_susps (n+len)
+    end
+  in
+  let susp = unmarshal_susps (roundup (33+filename_len)) in
+  { len; ext_len; location; data_len; date; flags; file_unit_size; gap_size; vol_seq; filename; susp }
 
 let maybe_unmarshal_directory v =
   let len = get_directory_len v in

@@ -36,11 +36,13 @@ let th =
     let dir_opt = Records.maybe_unmarshal_directory (Cstruct.sub sect n (2048 - n)) in
     match dir_opt with
     | None -> ()
-    | Some dir ->
-      Printf.printf "%s%s %d %d\n" prefix dir.Records.filename lba n;
-      if dir.Records.flags=2 && (String.length dir.Records.filename > 1)
-      then get_dirs (Printf.sprintf "%s  " prefix) (Int32.to_int dir.Records.location) 0;
-      get_dirs prefix lba (n+dir.Records.len)
+    | Some dir -> begin
+        let susp_records = String.concat "," (List.map (fun susp -> susp.Records.signature) dir.Records.susp) in
+        Printf.printf "%s%s %d %d (%s)\n" prefix dir.Records.filename lba n susp_records;
+        if dir.Records.flags=2 && (String.length dir.Records.filename > 1)
+        then get_dirs (Printf.sprintf "%s  " prefix) (Int32.to_int dir.Records.location) 0;
+        get_dirs prefix lba (n+dir.Records.len)
+      end
   in get_dirs "" 29 0;
   Lwt.return ()
 
