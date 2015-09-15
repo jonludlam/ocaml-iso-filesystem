@@ -4,7 +4,17 @@ type strA (* A-Z, 0-9, !, '\"' % & '\'' ( ) * + , - . / : ; < = > ? *)
 
 type strD (* A-Z, 0-9, _ *)
 
-type flags = | Hidden | Directory | AssociatedFile | Format | Perms | Final
+type flag = | Hidden | Directory | AssociatedFile | Format | Perms | NotFinal
+
+let sector_size = 2048
+
+let string_of_flag = function
+  | Hidden -> "Hidden"
+  | Directory -> "Directory"
+  | AssociatedFile -> "AssociatedFile"
+  | Format -> "Format"
+  | Perms -> "Perms"
+  | NotFinal -> "NotFinal"
 
 type path_table_entry = {
   pte_location : Int32.t;
@@ -24,7 +34,7 @@ type dir = {
   location : Int32.t;
   data_len : Int32.t;
   date : unit;
-  flags : int;
+  flags : flag list;
   file_unit_size : int;
   gap_size : int;
   vol_seq : int;
@@ -132,6 +142,28 @@ cstruct directory {
 } as little_endian
 
 
+let unmarshal_flags f =
+  let fs = [
+    0x1, Hidden;
+    0x2, Directory;
+    0x4, AssociatedFile;
+    0x8, Format;
+    0x10, Perms;
+    (* 0x20 and 0x40 are reserved *)
+    0x80, NotFinal ] in
+  let rec test n acc =
+    if n>0x80 then acc else
+      let acc' =
+        if n land f = n
+        then (List.assoc n fs)::acc
+        else acc
+      in
+      test (n*2) acc'
+  in
+  try
+    test 1 []
+  with Not_found ->
+    failwith "Invalid flags entry"
 
 let unmarshal_directory v =
   let len = get_directory_len v in
@@ -140,7 +172,8 @@ let unmarshal_directory v =
   let location = int32_of_lsb_msb (get_directory_location_lsb_msb v) in
   let data_len = int32_of_lsb_msb (get_directory_data_len_lsb_msb v) in
   let date = () in
-  let flags = get_directory_flags v in
+  let flags_int = get_directory_flags v in
+  let flags = unmarshal_flags flags_int in
   let file_unit_size = get_directory_file_unit_size v in
   let gap_size = get_directory_gap_size v in
   let vol_seq = int16_of_lsb_msb (get_directory_vol_seq_lsb_msb v) in
@@ -173,7 +206,7 @@ let print_directory d =
     "ext_len", string_of_int d.ext_len;
     "location", Int32.to_string d.location;
     "data_len", Int32.to_string d.data_len;
-    "flags", string_of_int d.flags;
+    "flags", String.concat "," (List.map string_of_flag d.flags);
     "file_unit_size", string_of_int d.file_unit_size;
     "gap_size", string_of_int d.gap_size;
     "vol_seq", string_of_int d.vol_seq;
