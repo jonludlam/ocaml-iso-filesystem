@@ -6,6 +6,12 @@ type strD (* A-Z, 0-9, _ *)
 
 type flags = | Hidden | Directory | AssociatedFile | Format | Perms | Final
 
+type path_table_entry = {
+  pte_location : Int32.t;
+  pte_parent : int;
+  pte_name : string;
+}
+
 type susp_entry = {
   signature : string;
   version : int;
@@ -78,6 +84,33 @@ let int16_of_lsb_msb v =
   | 0, x -> x
   | x, y -> if x<>y then raise Invalid_coding else x
 
+let roundup n = if n mod 2 = 1 then n+1 else n
+
+cstruct path_table_entry_lsb {
+    uint8_t len;
+    uint8_t ext_len;
+    uint32_t location;
+    uint16_t parent_dir;
+} as little_endian
+
+let unmarshal_one_pte_lsb v =
+  let len = get_path_table_entry_lsb_len v in
+  let ext_len = get_path_table_entry_lsb_ext_len v in
+  let location = get_path_table_entry_lsb_location v in
+  let parent = get_path_table_entry_lsb_parent_dir v in
+  let name = Cstruct.to_string (Cstruct.sub v 8 len) in
+  { pte_location=location; pte_parent=parent; pte_name=name }
+
+let unmarshal_pte_lsb v =
+  let size = Cstruct.len v in
+  let rec inner n =
+    if n >= size then [] else
+      let v' = Cstruct.sub v n (size-n) in
+      let pte = unmarshal_one_pte_lsb v' in
+      let next = n + 8 + String.length pte.pte_name |> roundup in
+      pte :: (inner next)
+  in inner 0
+
 cstruct susp {
     uint8_t signature[2];
     uint8_t len;
@@ -98,7 +131,7 @@ cstruct directory {
     uint8_t filename_start;
 } as little_endian
 
-let roundup n = if n mod 2 = 1 then n+1 else n
+
 
 let unmarshal_directory v =
   let len = get_directory_len v in
