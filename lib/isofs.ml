@@ -57,8 +57,8 @@ module Make (B: S.BLOCK_DEVICE
     let rec handle_volume_descriptors sector_num acc =
       B.read device (Int64.mul sector_num 4L) [ sector ]
       >>|= fun () ->
-      match Records.unmarshal_volume_descriptor sector with
-      | `Ok Records.Volume_descriptor_set_terminator -> Lwt.return (`Ok acc)
+      match Descriptors.unmarshal sector with
+      | `Ok Descriptors.Volume_descriptor_set_terminator -> Lwt.return (`Ok acc)
       | `Ok other -> handle_volume_descriptors (Int64.add 1L sector_num) (other::acc)
       | _ -> Lwt.return (`Ok acc)
     in
@@ -66,7 +66,7 @@ module Make (B: S.BLOCK_DEVICE
     >>|= fun descriptors ->
     Printf.printf "got descriptors\n%!";
     let pvd = List.fold_left (fun acc v ->
-      match v with Records.Primary_volume_descriptor pvd -> Some pvd | _ -> acc) None descriptors in
+      match v with Descriptors.Primary_volume_descriptor pvd -> Some pvd | _ -> acc) None descriptors in
     (match pvd with
     | Some pvd ->
       begin
@@ -74,18 +74,18 @@ module Make (B: S.BLOCK_DEVICE
         let rec get_dirs lba n =
           B.read device Int64.(mul 4L (of_int32 lba)) [ sector ]
           >>|= fun () ->
-          let dir_opt = Records.maybe_unmarshal_directory (Cstruct.sub sector n (2048 - n)) in
+          let dir_opt = Pathtable.maybe_unmarshal_directory (Cstruct.sub sector n (2048 - n)) in
           begin
             match dir_opt with
             | None -> Lwt.return (`Ok [])
             | Some dir -> begin
-                if List.mem Records.Directory dir.Records.flags && (String.length dir.Records.filename > 1)
+                if List.mem Pathtable.Directory dir.Pathtable.flags && (String.length dir.Pathtable.filename > 1)
                 then
-                  get_dirs dir.Records.location 0 >>|=
-                  fun list -> Lwt.return (`Ok [Directory { d_contents=list; d_name=dir.Records.filename }])
-                else Lwt.return (`Ok [File { f_name=dir.Records.filename; f_contents=OnDisk (dir.Records.location, dir.Records.data_len) } ] )
+                  get_dirs dir.Pathtable.location 0 >>|=
+                  fun list -> Lwt.return (`Ok [Directory { d_contents=list; d_name=dir.Pathtable.filename }])
+                else Lwt.return (`Ok [File { f_name=dir.Pathtable.filename; f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) } ] )
                   >>|= fun entry ->
-                  get_dirs lba (n+dir.Records.len)
+                  get_dirs lba (n+dir.Pathtable.len)
                   >>|= fun other_entries ->
                   Lwt.return (`Ok (entry @ other_entries))
               end

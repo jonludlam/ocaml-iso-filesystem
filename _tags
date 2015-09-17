@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 216c126081048db2796fc9a82699c519)
+# DO NOT EDIT (digest: 869af2c77303ba1812865c825f05d44c)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -16,7 +16,10 @@ true: annot, bin_annot
 "_darcs": not_hygienic
 # Library iso
 "lib/iso.cmxs": use_iso
-"lib/records.cmx": for-pack(Iso)
+"lib/descriptors.cmx": for-pack(Iso)
+"lib/pathtable.cmx": for-pack(Iso)
+"lib/multibyte.cmx": for-pack(Iso)
+"lib/susp.cmx": for-pack(Iso)
 "lib/isofs.cmx": for-pack(Iso)
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_lwt
@@ -48,4 +51,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: use_iso
 <lib_test/test.{native,byte}>: custom
 # OASIS_STOP
-<lib/records.ml>: syntax_camlp4o, pkg_cstruct.syntax
+<lib/susp.ml>: syntax_camlp4o, pkg_cstruct.syntax
+<lib/pathtable.ml>: syntax_camlp4o, pkg_cstruct.syntax
+<lib/descriptors.ml>: syntax_camlp4o, pkg_cstruct.syntax
+
