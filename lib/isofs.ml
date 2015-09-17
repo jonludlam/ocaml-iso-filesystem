@@ -18,15 +18,27 @@ and entry =
   | Directory of dir
   | File of file
 
-
+exception No_pvd_found
 
 module Make (B: S.BLOCK_DEVICE
                 with type 'a io = 'a Lwt.t
                 and type page_aligned_buffer = Cstruct.t)(M: S.IO_PAGE) = struct
 
+  type generic_err = B.error
+  type error =
+    [ `Disconnected
+    | `Is_read_only
+    | `Unimplemented
+    | `Unknown of string
+    | `Unknown_volume_descriptor_type
+    | `Invalid_primary_volume_descriptor
+    | `Invalid_volume_descriptor_id ]
+
+  type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
+
   exception Block_device_error of B.error
   let (>>|=) m f = m >>= function
-    | `Error e -> fail (Block_device_error e)
+    | `Error e -> Lwt.return (`Error e)
     | `Ok x -> f x
 
   let alloc bytes =
@@ -42,28 +54,49 @@ module Make (B: S.BLOCK_DEVICE
     let page = alloc 4096 in
     B.get_info device >>= fun info ->
     let sector = Cstruct.sub page 0 Records.sector_size in
-    B.read device (Int64.div 32768L 512L) [ sector ]
-    >>|= fun () ->
-    match Records.unmarshal_primary_volume_descriptor sector with
-    | None -> failwith "no pvd"
+    let rec handle_volume_descriptors sector_num acc =
+      B.read device (Int64.mul sector_num 4L) [ sector ]
+      >>|= fun () ->
+      match Records.unmarshal_volume_descriptor sector with
+      | `Ok Records.Volume_descriptor_set_terminator -> Lwt.return (`Ok acc)
+      | `Ok other -> handle_volume_descriptors (Int64.add 1L sector_num) (other::acc)
+      | _ -> Lwt.return (`Ok acc)
+    in
+    handle_volume_descriptors 16L []
+    >>|= fun descriptors ->
+    Printf.printf "got descriptors\n%!";
+    let pvd = List.fold_left (fun acc v ->
+      match v with Records.Primary_volume_descriptor pvd -> Some pvd | _ -> acc) None descriptors in
+    (match pvd with
     | Some pvd ->
-      Printf.printf "here...\n%!";
-      let rec get_dirs prefix lba n =
-        B.read device Int64.(mul 4L (of_int32 lba)) [ sector ]
-        >>|= fun () ->
-        let dir_opt = Records.maybe_unmarshal_directory (Cstruct.sub sector n (2048 - n)) in
-        begin
-          match dir_opt with
-          | None -> Lwt.return ()
-          | Some dir -> begin
-              let susp_records = String.concat "," (List.map (fun susp -> susp.Records.signature) dir.Records.susp) in
-              Printf.printf "%s%s %ld %d (%s) %ld %ld\n" prefix dir.Records.filename lba n susp_records dir.Records.location dir.Records.data_len;
-              (if List.mem Records.Directory dir.Records.flags && (String.length dir.Records.filename > 1)
-              then get_dirs (Printf.sprintf "%s  " prefix) dir.Records.location 0
-              else Lwt.return ()) >>= fun () ->
-              get_dirs prefix lba (n+dir.Records.len)
-            end
-        end
-      in get_dirs "" Records.(pvd.root_dir.location) 0
+      begin
+        Printf.printf "got pvd\n%!";
+        let rec get_dirs lba n =
+          B.read device Int64.(mul 4L (of_int32 lba)) [ sector ]
+          >>|= fun () ->
+          let dir_opt = Records.maybe_unmarshal_directory (Cstruct.sub sector n (2048 - n)) in
+          begin
+            match dir_opt with
+            | None -> Lwt.return (`Ok [])
+            | Some dir -> begin
+                if List.mem Records.Directory dir.Records.flags && (String.length dir.Records.filename > 1)
+                then
+                  get_dirs dir.Records.location 0 >>|=
+                  fun list -> Lwt.return (`Ok [Directory { d_contents=list; d_name=dir.Records.filename }])
+                else Lwt.return (`Ok [File { f_name=dir.Records.filename; f_contents=OnDisk (dir.Records.location, dir.Records.data_len) } ] )
+                  >>|= fun entry ->
+                  get_dirs lba (n+dir.Records.len)
+                  >>|= fun other_entries ->
+                  Lwt.return (`Ok (entry @ other_entries))
+              end
+          end
+        in
+        get_dirs Records.(pvd.root_dir.location) 0
+      end
+    | None ->
+      Lwt.return (`Error (`Unknown "bah"))
+    )
+
+
 
 end
