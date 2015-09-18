@@ -93,12 +93,11 @@ module Make (B: S.BLOCK_DEVICE
                   then
                     get_dirs dir.Pathtable.location 0 (lba::seen) >>|=
                     fun list -> Lwt.return (`Ok [Directory { d_contents=list; d_name=dir.Pathtable.filename }])
-                  else Lwt.return (`Ok [File { f_name=dir.Pathtable.filename; f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) } ] )
-                    >>|= fun entry ->
-                    get_dirs lba (n+dir.Pathtable.len) seen
-                    >>|= fun other_entries ->
-                    Lwt.return (`Ok (entry @ other_entries))
-                end
+                  else Lwt.return (`Ok [File { f_name=dir.Pathtable.filename; f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) } ] ) end
+                >>|= fun entry ->
+                get_dirs lba (n+dir.Pathtable.len) seen
+                >>|= fun other_entries ->
+                Lwt.return (`Ok (entry @ other_entries))
             end
         in
         get_dirs Records.(pvd.root_dir.location) 0 [pvd.root_dir.location]
