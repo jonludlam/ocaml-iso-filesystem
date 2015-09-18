@@ -54,4 +54,5 @@ true: annot, bin_annot
 <lib/susp.ml>: syntax_camlp4o, pkg_cstruct.syntax
 <lib/pathtable.ml>: syntax_camlp4o, pkg_cstruct.syntax
 <lib/descriptors.ml>: syntax_camlp4o, pkg_cstruct.syntax
+<lib/timestamps.ml>: syntax_camlp4o, pkg_cstruct.syntax
 

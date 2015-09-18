@@ -1,12 +1,18 @@
 
 
 module Px = struct
+  (* It seems that sometimes the serial field is omitted. Sadly,
+     the version field doesn't seem to tell us whether to expect
+     it or not, so we rely on the 'length' field, which is 44
+     when the field is present, and 36 when not. Represent this
+     in 't' with an option type *)
+
   type t = {
     mode : Int32.t;
     links : Int32.t;
     uid : Int32.t;
     gid : Int32.t;
-    serial : Int32.t;
+    serial : Int32.t option;
   }
 
   cstruct px {
@@ -17,12 +23,15 @@ module Px = struct
     uint8_t serial[8];
   } as little_endian
 
-  let unmarshal v =
+  let unmarshal v len =
     let mode = Multibyte.int32_of_lsb_msb (get_px_mode v) in
     let links = Multibyte.int32_of_lsb_msb (get_px_links v) in
     let uid = Multibyte.int32_of_lsb_msb (get_px_uid v) in
     let gid = Multibyte.int32_of_lsb_msb (get_px_gid v) in
-    let serial = Multibyte.int32_of_lsb_msb (get_px_serial v) in
+    let serial =
+      if len=44
+      then Some (Multibyte.int32_of_lsb_msb (get_px_serial v))
+      else None in
     { mode; links; uid; gid; serial }
 
 end
@@ -92,6 +101,49 @@ module Ce = struct
     Printf.printf "{ block_location=%ld; offset=%ld; length=%ld }" ce.block_location ce.offset ce.length
 end
 
+module Tf = struct
+  type ty =
+    | Creation
+    | Modify
+    | Access
+    | Attributes
+    | Backup
+    | Expiration
+    | Effective
+
+  type t = (ty * Timestamps.t) list
+
+  let bits = [
+    0x01, Creation;
+    0x02, Modify;
+    0x04, Access;
+    0x08, Attributes;
+    0x10, Backup;
+    0x20, Expiration;
+    0x40, Effective
+  ]
+
+  let unmarshal v =
+    let flags = Cstruct.get_uint8 v 0 in
+    let len, unmarshal =
+      if flags land 0x80 = 0x80
+      then 17, Timestamps.Long.unmarshal
+      else 7, Timestamps.Short.unmarshal
+    in
+    let rec inner n off acc =
+      if n=0x80 then acc else
+      if flags land n = n
+      then
+        let entry = unmarshal (Cstruct.sub v off len) in
+        let ty = List.assoc n bits in
+        inner (n*2) (off+len) ((ty,entry)::acc)
+      else
+        inner (n*2) (off+len) acc
+    in inner 1 1 []
+
+end
+
+
 type unhandled_entry = {
   signature : string;
   version : int;
@@ -108,6 +160,7 @@ type t =
   | NM of Nm.t
   | PX of Px.t
   | CE of Ce.t
+  | TF of Tf.t
   | Unhandled of unhandled_entry
 
 type error = [ `Invalid_SUSP_entry ]
@@ -126,9 +179,10 @@ let unmarshal v =
         let data = Cstruct.sub v (n+4) (len-4) in
         let entry =
           match signature with
-          | "NM" -> let nm = Nm.unmarshal data in Printf.printf "Got NM (name=%s)\n%!" nm.Nm.filename; NM (nm)
-          | "PX" -> PX (Px.unmarshal data)
+          | "NM" -> let nm = Nm.unmarshal data in NM nm
+          | "PX" -> let px = Px.unmarshal data len in PX px
           | "CE" -> let ce = Ce.unmarshal data in Ce.print ce; CE ce
+          | "TF" -> let tf = Tf.unmarshal data in TF tf
           | x -> Printf.printf "Unhandled: %s\n%!" x; Unhandled { signature; version; data }
         in
         inner (n+len) (entry :: acc)

@@ -94,7 +94,6 @@ let unmarshal_flags f =
 
 let unmarshal_directory v =
   let len = get_directory_len v in
-  Printf.printf "XXX len=%d\n%!" len;
   let ext_len = get_directory_ext_len v in
   let location = Multibyte.int32_of_lsb_msb (get_directory_location_lsb_msb v) in
   let data_len = Multibyte.int32_of_lsb_msb (get_directory_data_len_lsb_msb v) in
