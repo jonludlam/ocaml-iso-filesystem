@@ -1,3 +1,5 @@
+open Result
+
 let identifier_val = "CD001"
 
 cenum volume_descriptor_type {
@@ -81,7 +83,8 @@ module Primary = struct
     let path_table_size = int32_of_lsb_msb (get_pvd_path_table_size_lsb_msb pvd) in
     let path_table_l_loc = get_pvd_l_path_table pvd in
     let opt_path_table_l_loc = get_pvd_opt_l_path_table pvd in
-    let root_dir = Pathtable.unmarshal_directory (get_pvd_root_directory pvd) in
+    Pathtable.unmarshal_directory (get_pvd_root_directory pvd)
+    >>= fun root_dir ->
     let volume_set_id = Cstruct.to_string (get_pvd_volume_set_id pvd) in
     let publisher_id = Cstruct.to_string (get_pvd_publisher_id pvd) in
     let data_preparer_id = Cstruct.to_string (get_pvd_data_preparer_id pvd) in
@@ -89,7 +92,7 @@ module Primary = struct
     let copyright = Cstruct.to_string (get_pvd_copyright pvd) in
     let abstract_file_id = Cstruct.to_string (get_pvd_abstract_file_id pvd) in
     let biblio_file_id = Cstruct.to_string (get_pvd_biblio_file_id pvd) in
-    { system_id; volume_id; size; vol_set_size; vol_seq_no; block_size;
+    `Ok { system_id; volume_id; size; vol_set_size; vol_seq_no; block_size;
       path_table_size; path_table_l_loc = Some path_table_l_loc;
       opt_path_table_l_loc = Some opt_path_table_l_loc; path_table_m_loc = None;
       opt_path_table_m_loc = None; root_dir; volume_set_id; publisher_id;
@@ -157,7 +160,9 @@ let unmarshal (buf : Cstruct.t) =
     begin
       try
         let pvd = get_volume_descriptor_data buf in
-        `Ok (Primary_volume_descriptor (Primary.unmarshal pvd))
+        Primary.unmarshal pvd
+        >>= fun result ->
+        `Ok (Primary_volume_descriptor result)
       with e ->
         `Error `Invalid_primary_volume_descriptor
     end

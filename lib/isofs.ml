@@ -24,21 +24,30 @@ module Make (B: S.BLOCK_DEVICE
                 with type 'a io = 'a Lwt.t
                 and type page_aligned_buffer = Cstruct.t)(M: S.IO_PAGE) = struct
 
-  type generic_err = B.error
   type error =
-    [ `Disconnected
-    | `Is_read_only
-    | `Unimplemented
-    | `Unknown of string
+    [ B.error
     | `Unknown_volume_descriptor_type
     | `Invalid_primary_volume_descriptor
-    | `Invalid_volume_descriptor_id ]
+    | `Invalid_volume_descriptor_id
+    | `Invalid_SUSP_entry ]
 
   type ('a, 'b) result = [ `Ok of 'a | `Error of 'b ]
 
+  let openerr : ('a, [< error ]) result -> ('a, [>error]) result =
+    function
+    | `Ok x as z -> z
+    | `Error `Disconnected as z -> z
+    | `Error `Is_read_only as z -> z
+    | `Error `Unimplemented as z -> z
+    | `Error `Unknown _ as z -> z
+    | `Error `Unknown_volume_descriptor_type as z -> z
+    | `Error `Invalid_primary_volume_descriptor as z -> z
+    | `Error `Invalid_volume_descriptor_id as z -> z
+    | `Error `Invalid_SUSP_entry as z -> z
+
   exception Block_device_error of B.error
-  let (>>|=) m f = m >>= function
-    | `Error e -> Lwt.return (`Error e)
+  let ((>>|=) : ('a, [< error]) result Lwt.t -> ('a -> ('c, [> error]) result Lwt.t) -> ('c, [> error]) result Lwt.t) = fun m f -> m >>= function
+    | `Error x as z -> Lwt.return (openerr z)
     | `Ok x -> f x
 
   let alloc bytes =
@@ -55,7 +64,7 @@ module Make (B: S.BLOCK_DEVICE
     B.get_info device >>= fun info ->
     let sector = Cstruct.sub page 0 Records.sector_size in
     let rec handle_volume_descriptors sector_num acc =
-      B.read device (Int64.mul sector_num 4L) [ sector ]
+      B.read device (Int64.mul sector_num 4L) [ sector ] >>= fun x -> Lwt.return (openerr x)
       >>|= fun () ->
       match Descriptors.unmarshal sector with
       | `Ok Descriptors.Volume_descriptor_set_terminator -> Lwt.return (`Ok acc)
@@ -71,27 +80,28 @@ module Make (B: S.BLOCK_DEVICE
     | Some pvd ->
       begin
         Printf.printf "got pvd\n%!";
-        let rec get_dirs lba n =
+        let rec get_dirs lba n seen =
           B.read device Int64.(mul 4L (of_int32 lba)) [ sector ]
           >>|= fun () ->
-          let dir_opt = Pathtable.maybe_unmarshal_directory (Cstruct.sub sector n (2048 - n)) in
-          begin
-            match dir_opt with
-            | None -> Lwt.return (`Ok [])
-            | Some dir -> begin
-                if List.mem Pathtable.Directory dir.Pathtable.flags && (String.length dir.Pathtable.filename > 1)
-                then
-                  get_dirs dir.Pathtable.location 0 >>|=
-                  fun list -> Lwt.return (`Ok [Directory { d_contents=list; d_name=dir.Pathtable.filename }])
-                else Lwt.return (`Ok [File { f_name=dir.Pathtable.filename; f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) } ] )
-                  >>|= fun entry ->
-                  get_dirs lba (n+dir.Pathtable.len)
-                  >>|= fun other_entries ->
-                  Lwt.return (`Ok (entry @ other_entries))
-              end
-          end
+          Lwt.return (Pathtable.maybe_unmarshal_directory (Cstruct.sub sector n (2048 - n)))
+          >>|= fun dir_opt ->
+            begin
+              match dir_opt with
+              | None -> Lwt.return (`Ok [])
+              | Some dir -> begin
+                  if List.mem Pathtable.Directory dir.Pathtable.flags && (not (Susp.is_dot_or_dotdot dir.Pathtable.susp)) && not (List.mem dir.Pathtable.location seen)
+                  then
+                    get_dirs dir.Pathtable.location 0 (lba::seen) >>|=
+                    fun list -> Lwt.return (`Ok [Directory { d_contents=list; d_name=dir.Pathtable.filename }])
+                  else Lwt.return (`Ok [File { f_name=dir.Pathtable.filename; f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) } ] )
+                    >>|= fun entry ->
+                    get_dirs lba (n+dir.Pathtable.len) seen
+                    >>|= fun other_entries ->
+                    Lwt.return (`Ok (entry @ other_entries))
+                end
+            end
         in
-        get_dirs Records.(pvd.root_dir.location) 0
+        get_dirs Records.(pvd.root_dir.location) 0 [pvd.root_dir.location]
       end
     | None ->
       Lwt.return (`Error (`Unknown "bah"))

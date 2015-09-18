@@ -1,3 +1,5 @@
+open Result
+
 type flag = | Hidden | Directory | AssociatedFile | Format | Perms | NotFinal
 
 let string_of_flag = function
@@ -25,7 +27,7 @@ type dir = {
   gap_size : int;
   vol_seq : int;
   filename : string;
-  susp : Susp.entry list;
+  susp : Susp.t list;
 }
 
 cstruct directory {
@@ -105,13 +107,16 @@ let unmarshal_directory v =
   let filename_len = get_directory_filename_length v in
   let filename = Cstruct.to_string (Cstruct.sub v 33 (filename_len)) in
   let susp_start = Multibyte.roundup (33+filename_len) in
-  let susp = Susp.unmarshal (Cstruct.sub v susp_start (len - susp_start)) in
-  { len; ext_len; location; data_len; date; flags; file_unit_size; gap_size; vol_seq; filename; susp }
+  Susp.unmarshal (Cstruct.sub v susp_start (len - susp_start))
+  >>= fun susp ->
+  `Ok { len; ext_len; location; data_len; date; flags; file_unit_size; gap_size; vol_seq; filename; susp }
 
 let maybe_unmarshal_directory v =
   let len = get_directory_len v in
-  if len = 0 then None else begin
-    Some (unmarshal_directory v)
+  if len = 0 then `Ok None else begin
+    unmarshal_directory v
+    >>= fun dir ->
+    `Ok (Some dir)
   end
 
 let print_directory d =
