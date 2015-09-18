@@ -89,11 +89,12 @@ module Make (B: S.BLOCK_DEVICE
               match dir_opt with
               | None -> Lwt.return (`Ok [])
               | Some dir -> begin
+                  let name = Pathtable.get_filename dir in
                   if List.mem Pathtable.Directory dir.Pathtable.flags && (not (Susp.is_dot_or_dotdot dir.Pathtable.susp)) && not (List.mem dir.Pathtable.location seen)
                   then
                     get_dirs dir.Pathtable.location 0 (lba::seen) >>|=
-                    fun list -> Lwt.return (`Ok [Directory { d_contents=list; d_name=dir.Pathtable.filename }])
-                  else Lwt.return (`Ok [File { f_name=dir.Pathtable.filename; f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) } ] ) end
+                    fun list -> Lwt.return (`Ok [Directory { d_contents=list; d_name=name }])
+                  else Lwt.return (`Ok [File { f_name=name; f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) } ] ) end
                 >>|= fun entry ->
                 get_dirs lba (n+dir.Pathtable.len) seen
                 >>|= fun other_entries ->

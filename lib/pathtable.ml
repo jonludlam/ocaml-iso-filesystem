@@ -131,3 +131,15 @@ let print_directory d =
     "vol_seq", string_of_int d.vol_seq;
     "filename", d.filename ] in
   List.iter (fun (k,v) -> Printf.printf "%s: %s\n" k v) fields
+
+let get_filename d =
+  let filename = List.fold_left
+      (fun acc s -> match s with | Susp.NM nm -> nm.Susp.Nm.filename | _ -> acc)
+      d.filename d.susp in
+  if List.mem Directory d.flags
+  then begin
+    match d.filename with
+    | "\000" -> "."
+    | "\001" -> ".."
+    | x -> filename
+  end else filename
