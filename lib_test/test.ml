@@ -17,9 +17,27 @@ let (>>|=) m f = m >>= function
 let th =
    Block.connect Sys.argv.(1)
    >>|= fun b ->
-   Iso.connect b >>|=
-   fun xs ->
-   List.iter (function Isofs.File f -> Printf.printf "%s (%s)\n" f.Isofs.f_name (get_description f)  | Isofs.Directory d -> Printf.printf "%s\n" d.Isofs.d_name) xs;
+   Iso.connect b
+   >>|= fun iso ->
+   let rec print prefix entries =
+     List.iter
+       (function
+         | (name, Isofs.File f) ->
+           Printf.printf "%s%s (%s)\n" prefix name (get_description f)
+         | (name, Isofs.Directory d) ->
+           Printf.printf "%s%s\n" prefix name;
+           print (Printf.sprintf "%s%s/" prefix name) d.Isofs.d_contents
+       )
+       entries
+   in
+   print "/" iso.Iso.entries;
+   Iso.size iso (Sys.argv.(2))
+   >>|= fun size ->
+   Iso.read iso (Sys.argv.(2)) 0 (Int64.to_int size)
+   >>|= fun result ->
+   Printf.printf "....\n%!";
+   List.iter (fun x -> Printf.printf "%s" (Cstruct.to_string x)) result;
+   Printf.printf "\n";
    Lwt.return (`Ok ())
 
 let _ =
