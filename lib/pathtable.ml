@@ -129,7 +129,7 @@ let print_directory d =
     "gap_size", string_of_int d.gap_size;
     "vol_seq", string_of_int d.vol_seq;
     "filename", d.filename ] in
-  List.iter (fun (k,v) -> Printf.printf "%s: %s\n" k v) fields
+  List.iter (fun (k,v) -> Printf.printf "%s: %s\t" k v) fields
 
 let get_filename d =
   let filename = List.fold_left

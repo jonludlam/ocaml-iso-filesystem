@@ -156,7 +156,6 @@ let unmarshal (buf : Cstruct.t) =
   if id <> identifier_val then (`Error `Invalid_volume_descriptor_id) else
   match ty with
   | Some PRIMARY_VOLUME_DESCRIPTOR ->
-    Printf.printf "Found PVD\n%!";
     begin
       try
         let pvd = get_volume_descriptor_data buf in
@@ -167,7 +166,6 @@ let unmarshal (buf : Cstruct.t) =
         `Error `Invalid_primary_volume_descriptor
     end
   | Some BOOT_RECORD ->
-    Printf.printf "Found boot record\n%!";
     `Ok Boot_record
   | Some SUPPLEMENTARY_VOLUME_DESCRIPTOR ->
     `Ok Supplementary_volume_descriptor

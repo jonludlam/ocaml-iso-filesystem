@@ -181,9 +181,9 @@ let unmarshal v =
           match signature with
           | "NM" -> let nm = Nm.unmarshal data in NM nm
           | "PX" -> let px = Px.unmarshal data len in PX px
-          | "CE" -> let ce = Ce.unmarshal data in Ce.print ce; CE ce
+          | "CE" -> let ce = Ce.unmarshal data in CE ce
           | "TF" -> let tf = Tf.unmarshal data in TF tf
-          | x -> Printf.printf "Unhandled: %s\n%!" x; Unhandled { signature; version; data }
+          | x -> Unhandled { signature; version; data }
         in
         inner (n+len) (entry :: acc)
     end

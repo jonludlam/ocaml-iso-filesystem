@@ -90,6 +90,55 @@ module Make (B: S.BLOCK_DEVICE
     let sec = Int64.of_int32 Int32.(mul sector 4l) in
     B.read device sec [buf]
 
+  let read_directory_entries sector =
+    let len = Cstruct.len sector in
+    let rec inner n acc =
+      let entry_opt = Pathtable.maybe_unmarshal_directory
+          (Cstruct.sub sector n (len - n)) in
+      match entry_opt with
+      | `Ok None ->
+        `Ok acc
+      | `Ok (Some entry) ->
+        inner (n+entry.Pathtable.len) (entry::acc)
+      | `Error _ as x -> x
+    in
+    inner 0 []
+
+  let rec read_whole_directory device dir =
+    let name = Pathtable.get_filename dir in
+    let sector = alloc 2048 in
+    let read_sector n =
+      B.read device Int64.(mul n 4L) [ sector ]
+      >>|= fun () ->
+      Lwt.return (read_directory_entries sector)
+    in
+    let total_sectors = Int64.(div (of_int32 dir.Pathtable.data_len) 2048L) in
+    let rec inner n acc =
+      if n=total_sectors
+      then Lwt.return (`Ok (List.concat (List.rev acc)))
+      else begin
+        read_sector (Int64.add n (Int64.of_int32 dir.Pathtable.location))
+        >>|= fun entries ->
+        inner Int64.(add n 1L) (entries::acc)
+      end
+    in
+    inner 0L []
+    >>|= fun entries ->
+    let convert_entry acc entry =
+      acc >>|= fun entries ->
+      let open Pathtable in
+      let name = Pathtable.get_filename entry in
+      if name="." || name=".." || Susp.is_dot_or_dotdot entry.Pathtable.susp
+      then Lwt.return (`Ok entries)
+      else
+      if List.mem Directory entry.flags
+      then read_whole_directory device entry >>|= fun entry -> Lwt.return (`Ok (entry::entries))
+      else Lwt.return (`Ok ((name, File { f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) })::entries))
+    in
+    List.fold_left convert_entry (Lwt.return (`Ok [])) entries
+    >>|= fun entries ->
+    Lwt.return (`Ok (name, Directory { d_contents=entries }))
+
   let connect device =
     let page = alloc 4096 in
     B.get_info device >>= fun info ->
@@ -104,40 +153,19 @@ module Make (B: S.BLOCK_DEVICE
     in
     handle_volume_descriptors 16L []
     >>|= fun descriptors ->
-    Printf.printf "got descriptors\n%!";
     let pvd = List.fold_left (fun acc v ->
-      match v with Descriptors.Primary_volume_descriptor pvd -> Some pvd | _ -> acc) None descriptors in
+        match v with Descriptors.Primary_volume_descriptor pvd -> Some pvd | _ -> acc) None descriptors in
     (match pvd with
-    | Some pvd ->
-      begin
-        Printf.printf "got pvd\n%!";
-        let rec get_dirs lba n seen =
-          B.read device Int64.(mul 4L (of_int32 lba)) [ sector ]
-          >>|= fun () ->
-          Lwt.return (Pathtable.maybe_unmarshal_directory (Cstruct.sub sector n (2048 - n)))
-          >>|= fun dir_opt ->
-            begin
-              match dir_opt with
-              | None -> Lwt.return (`Ok [])
-              | Some dir -> begin
-                  let name = Pathtable.get_filename dir in
-                  if List.mem Pathtable.Directory dir.Pathtable.flags && (not (Susp.is_dot_or_dotdot dir.Pathtable.susp)) && not (List.mem dir.Pathtable.location seen)
-                  then
-                    get_dirs dir.Pathtable.location 0 (lba::seen) >>|=
-                    fun list -> Lwt.return (`Ok [name, Directory { d_contents=list; }])
-                  else Lwt.return (`Ok [name, File { f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) } ] ) end
-                >>|= fun entry ->
-                get_dirs lba (n+dir.Pathtable.len) seen
-                >>|= fun other_entries ->
-                Lwt.return (`Ok (entry @ other_entries))
-            end
-        in
-        get_dirs Records.(pvd.root_dir.location) 0 [pvd.root_dir.location] >>|=
-        fun entries ->
-        Lwt.return (`Ok { device; entries})
-      end
-    | None ->
-      Lwt.return (`Error (`Unknown "bah"))
+     | Some pvd ->
+       begin
+         read_whole_directory device pvd.Descriptors.Primary.root_dir
+         >>|= fun x ->
+         match x with
+         | _, Directory {d_contents=entries} -> Lwt.return (`Ok {device; entries})
+         | _, _ -> Lwt.return (`Error (`Unknown "Root directory wasn't a directory...?"))
+       end
+     | None ->
+       Lwt.return (`Error (`Unknown "bah"))
     )
 
   let size t key =
@@ -170,12 +198,26 @@ module Make (B: S.BLOCK_DEVICE
       let rounded_up_size = 2048 * ((Int32.to_int len + 2047) / 2048) in
       let pages = alloc rounded_up_size in
       let sector = Int64.mul 4L (Int64.of_int32 loc) in
-      Printf.printf "About to read from sector: %Ld (allocated %d bytes)\n%!" sector rounded_up_size;
       B.read t.device sector [pages]
       >>|= fun () ->
-      Printf.printf "OK! %s\n%!" (Cstruct.to_string pages);
       Lwt.return (`Ok [Cstruct.sub pages offset length])
     | _ ->
       Lwt.return (`Error (`Unknown_error "No such file"))
+
+  let listdir t key =
+    begin
+      try
+        let res = `Ok (locate t.entries key) in
+        Lwt.return res
+      with
+      | FileNotFound x ->
+        Lwt.return (`Error (`Unknown_error "File not found"))
+    end
+    >>|= function
+    | File _ ->
+      Lwt.return (`Error (`Not_a_directory key))
+    | Directory d ->
+      let contents = List.map fst d.d_contents in
+      Lwt.return (`Ok contents)
 
 end
