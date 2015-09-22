@@ -1,0 +1,30 @@
+opam-version: "1.2"
+name: "iso9660-filesystem"
+version: "0.1"
+maintainer: "opam-devel@lists.ocaml.org"
+authors: [ "Jon Ludlam" ]
+license: "ISC"
+build: [
+  ["ocaml" "setup.ml" "-configure" "--prefix" prefix]
+  ["ocaml" "setup.ml" "-build"]
+]
+install: ["ocaml" "setup.ml" "-install"]
+remove: [
+  ["ocamlfind" "remove" "iso-filesystem"]
+]
+build-test: [
+  ["ocaml" "setup.ml" "-configure" "--enable-tests"]
+  ["ocaml" "setup.ml" "-build"]
+  ["ocaml" "setup.ml" "-test"]
+]
+depends: [
+  "cstruct"
+  "io-page" {build}
+  "lwt"
+  "mirage-block-unix" {build}
+  "mirage-types"
+  "ocamlfind" {build}
+  "ounit" {build}
+  "re"
+  "stringext"
+]

@@ -31,6 +31,7 @@ let th =
    >>|= fun b ->
    Iso.connect b
    >>|= fun iso ->
+   print "/" iso.Iso.entries;
    Iso.size iso (Sys.argv.(2))
    >>|= fun size ->
    Iso.read iso (Sys.argv.(2)) 0 (Int64.to_int size)
