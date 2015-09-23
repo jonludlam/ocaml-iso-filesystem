@@ -133,7 +133,7 @@ module Make (B: S.BLOCK_DEVICE
       else
       if List.mem Directory entry.flags
       then read_whole_directory device entry >>|= fun entry -> Lwt.return (`Ok (entry::entries))
-      else Lwt.return (`Ok ((name, File { f_contents=OnDisk (dir.Pathtable.location, dir.Pathtable.data_len) })::entries))
+      else Lwt.return (`Ok ((name, File { f_contents=OnDisk (entry.Pathtable.location, entry.Pathtable.data_len) })::entries))
     in
     List.fold_left convert_entry (Lwt.return (`Ok [])) entries
     >>|= fun entries ->
