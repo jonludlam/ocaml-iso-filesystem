@@ -12,7 +12,7 @@ Library iso
   CompiledObject:     best
   Path:               lib
   Findlibname:        iso-filesystem
-  Modules:            Descriptors, Pathtable, Multibyte, Susp, Isofs, Records, Timestamps, Result
+  Modules:            Descriptors, Pathtable, Multibyte, Susp, Isofs, Records, Timestamps, Result, S
   BuildDepends:       cstruct, re, mirage-types, lwt, stringext
 
 Executable test
