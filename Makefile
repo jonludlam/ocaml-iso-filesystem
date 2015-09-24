@@ -20,6 +20,7 @@ doc: setup.data setup.bin
 	@./setup.bin -doc -j $(J)
 
 test: setup.bin build
+	@./lib_test/mkiso.sh
 	@./setup.bin -test
 
 reinstall: setup.bin
