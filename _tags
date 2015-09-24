@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 857325fb9827d9127bc41e350e50c96c)
+# DO NOT EDIT (digest: d242ca987a05167765789126dec9fcf6)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -27,7 +27,7 @@ true: annot, bin_annot
 "lib/s.cmx": for-pack(Iso)
 <lib/*.ml{,i,y}>: pkg_cstruct
 <lib/*.ml{,i,y}>: pkg_lwt
-<lib/*.ml{,i,y}>: pkg_mirage-types.lwt
+<lib/*.ml{,i,y}>: pkg_mirage-types
 <lib/*.ml{,i,y}>: pkg_re
 <lib/*.ml{,i,y}>: pkg_stringext
 # Executable test
@@ -37,7 +37,7 @@ true: annot, bin_annot
 <lib_test/test.{native,byte}>: pkg_lwt
 <lib_test/test.{native,byte}>: pkg_lwt.unix
 <lib_test/test.{native,byte}>: pkg_mirage-block-unix
-<lib_test/test.{native,byte}>: pkg_mirage-types.lwt
+<lib_test/test.{native,byte}>: pkg_mirage-types
 <lib_test/test.{native,byte}>: pkg_oUnit
 <lib_test/test.{native,byte}>: pkg_re
 <lib_test/test.{native,byte}>: pkg_stringext
@@ -48,7 +48,7 @@ true: annot, bin_annot
 <lib_test/*.ml{,i,y}>: pkg_lwt
 <lib_test/*.ml{,i,y}>: pkg_lwt.unix
 <lib_test/*.ml{,i,y}>: pkg_mirage-block-unix
-<lib_test/*.ml{,i,y}>: pkg_mirage-types.lwt
+<lib_test/*.ml{,i,y}>: pkg_mirage-types
 <lib_test/*.ml{,i,y}>: pkg_oUnit
 <lib_test/*.ml{,i,y}>: pkg_re
 <lib_test/*.ml{,i,y}>: pkg_stringext

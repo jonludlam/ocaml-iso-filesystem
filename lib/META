@@ -1,8 +1,8 @@
 # OASIS_START
-# DO NOT EDIT (digest: 9109bf668ade2434086b0877d10d932a)
+# DO NOT EDIT (digest: 76753c6c223c3ac567f04a6b515bdb52)
 version = "0.1"
 description = "ISO9660 filesystem manipulation"
-requires = "cstruct re mirage-types.lwt lwt stringext"
+requires = "cstruct re mirage-types lwt stringext"
 archive(byte) = "iso.cma"
 archive(byte, plugin) = "iso.cma"
 archive(native) = "iso.cmxa"
