@@ -48,10 +48,12 @@ module Make (B: S.BLOCK_DEVICE
                 with type 'a io = 'a Lwt.t
                 and type page_aligned_buffer = Cstruct.t)(M: S.IO_PAGE) = struct
 
-  type t = {
+  type iso_t = {
     device : B.t;
     entries : (string * entry) list;
   }
+
+  type t = iso_t
 
   type error =
     [ B.error
@@ -220,6 +222,33 @@ module Make (B: S.BLOCK_DEVICE
     | Directory d ->
       let contents = List.map fst d.d_contents in
       return contents
+
+  module KV_RO : V1_LWT.KV_RO = struct
+
+    type t = iso_t
+
+    type 'a io = 'a Lwt.t
+
+    type id = B.t
+
+    type error =
+      | Unknown_key of string
+
+    type page_aligned_buffer = Cstruct.t
+
+    let disconnect t = Lwt.return ()
+
+    let read t key offset length =
+      read t key offset length >>= function
+      | `Ok x -> return x
+      | _ -> Lwt.return (`Error (Unknown_key key))
+
+    let size t key =
+      size t key >>= function
+      | `Ok x -> return x
+      | _ -> Lwt.return (`Error (Unknown_key key))
+
+  end
 
 end
 
