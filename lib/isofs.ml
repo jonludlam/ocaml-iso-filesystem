@@ -77,9 +77,12 @@ module Make (B: S.BLOCK_DEVICE
     | `Error `Unknown_error _ as z -> z
 
   exception Block_device_error of B.error
+
   let ((>>|=) : ('a, [< error]) result Lwt.t -> ('a -> ('c, [> error]) result Lwt.t) -> ('c, [> error]) result Lwt.t) = fun m f -> m >>= function
     | `Error x as z -> Lwt.return (openerr z)
     | `Ok x -> f x
+
+  let return x = Lwt.return (`Ok x)
 
   let alloc bytes =
     let pages = M.get_buf ~n:((bytes + 4095) / 4096) () in
@@ -115,7 +118,7 @@ module Make (B: S.BLOCK_DEVICE
     let total_sectors = Int64.(div (of_int32 dir.Pathtable.data_len) 2048L) in
     let rec inner n acc =
       if n=total_sectors
-      then Lwt.return (`Ok (List.concat (List.rev acc)))
+      then return (List.concat (List.rev acc))
       else begin
         read_sector (Int64.add n (Int64.of_int32 dir.Pathtable.location))
         >>|= fun entries ->
@@ -129,15 +132,15 @@ module Make (B: S.BLOCK_DEVICE
       let open Pathtable in
       let name = Pathtable.get_filename entry in
       if name="." || name=".." || Susp.is_dot_or_dotdot entry.Pathtable.susp
-      then Lwt.return (`Ok entries)
+      then return entries
       else
       if List.mem Directory entry.flags
-      then read_whole_directory device entry >>|= fun entry -> Lwt.return (`Ok (entry::entries))
-      else Lwt.return (`Ok ((name, File { f_contents=OnDisk (entry.Pathtable.location, entry.Pathtable.data_len) })::entries))
+      then read_whole_directory device entry >>|= fun entry -> return (entry::entries)
+      else return ((name, File { f_contents=OnDisk (entry.Pathtable.location, entry.Pathtable.data_len) })::entries)
     in
-    List.fold_left convert_entry (Lwt.return (`Ok [])) entries
+    List.fold_left convert_entry (return []) entries
     >>|= fun entries ->
-    Lwt.return (`Ok (name, Directory { d_contents=entries }))
+    return (name, Directory { d_contents=entries })
 
   let connect device =
     let page = alloc 4096 in
@@ -147,9 +150,9 @@ module Make (B: S.BLOCK_DEVICE
       B.read device (Int64.mul sector_num 4L) [ sector ] >>= fun x -> Lwt.return (openerr x)
       >>|= fun () ->
       match Descriptors.unmarshal sector with
-      | `Ok Descriptors.Volume_descriptor_set_terminator -> Lwt.return (`Ok acc)
+      | `Ok Descriptors.Volume_descriptor_set_terminator -> return acc
       | `Ok other -> handle_volume_descriptors (Int64.add 1L sector_num) (other::acc)
-      | _ -> Lwt.return (`Ok acc)
+      | _ -> return acc
     in
     handle_volume_descriptors 16L []
     >>|= fun descriptors ->
@@ -161,7 +164,7 @@ module Make (B: S.BLOCK_DEVICE
          read_whole_directory device pvd.Descriptors.Primary.root_dir
          >>|= fun x ->
          match x with
-         | _, Directory {d_contents=entries} -> Lwt.return (`Ok {device; entries})
+         | _, Directory {d_contents=entries} -> return {device; entries}
          | _, _ -> Lwt.return (`Error (`Unknown "Root directory wasn't a directory...?"))
        end
      | None ->
@@ -180,15 +183,14 @@ module Make (B: S.BLOCK_DEVICE
     end
     >>|= function
     | File { f_contents = OnDisk (loc, len) } ->
-      Lwt.return (`Ok (Int64.of_int32 len))
+      return (Int64.of_int32 len)
     | _ ->
       Lwt.return (`Error (`Unknown_error "No such file"))
 
   let read t key offset length =
     begin
       try
-        let res = `Ok (locate t.entries key) in
-        Lwt.return res
+        return (locate t.entries key)
       with
       | FileNotFound x ->
         Lwt.return (`Error (`Unknown_error "File not found"))
@@ -200,15 +202,14 @@ module Make (B: S.BLOCK_DEVICE
       let sector = Int64.mul 4L (Int64.of_int32 loc) in
       B.read t.device sector [pages]
       >>|= fun () ->
-      Lwt.return (`Ok [Cstruct.sub pages offset length])
+      return [Cstruct.sub pages offset length]
     | _ ->
       Lwt.return (`Error (`Unknown_error "No such file"))
 
   let listdir t key =
     begin
       try
-        let res = `Ok (locate t.entries key) in
-        Lwt.return res
+        return (locate t.entries key)
       with
       | FileNotFound x ->
         Lwt.return (`Error (`Unknown_error "File not found"))
@@ -218,6 +219,7 @@ module Make (B: S.BLOCK_DEVICE
       Lwt.return (`Error (`Not_a_directory key))
     | Directory d ->
       let contents = List.map fst d.d_contents in
-      Lwt.return (`Ok contents)
+      return contents
 
 end
+
