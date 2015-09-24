@@ -13,7 +13,7 @@ Library iso
   Path:               lib
   Findlibname:        iso-filesystem
   Modules:            Descriptors, Pathtable, Multibyte, Susp, Isofs, Records, Timestamps, Result, S
-  BuildDepends:       cstruct, re, mirage-types, lwt, stringext
+  BuildDepends:       cstruct, re, mirage-types.lwt, lwt, stringext
 
 Executable test
   CompiledObject:     best
