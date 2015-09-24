@@ -27,14 +27,14 @@ let rec print prefix entries =
     entries
 
 let th =
-   Block.connect Sys.argv.(1)
+   Block.connect "test.iso"
    >>|= fun b ->
    Iso.connect b
    >>|= fun iso ->
    print "/" iso.Iso.entries;
-   Iso.size iso (Sys.argv.(2))
+   Iso.size iso "/hello.txt"
    >>|= fun size ->
-   Iso.read iso (Sys.argv.(2)) 0 (Int64.to_int size)
+   Iso.read iso "/hello.txt" 0 (Int64.to_int size)
    >>|= fun result ->
    List.iter (fun x -> Printf.printf "%s" (Cstruct.to_string x)) result;
    Lwt.return (`Ok ())

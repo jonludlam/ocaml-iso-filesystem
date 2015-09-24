@@ -22,3 +22,7 @@ Executable test
   Custom:             true
   Install:            false
   BuildDepends:       lwt, lwt.unix, iso-filesystem, cstruct, oUnit, mirage-block-unix, io-page, io-page.unix
+
+Test test
+  Command:            ./test.native
+  Run:                true
