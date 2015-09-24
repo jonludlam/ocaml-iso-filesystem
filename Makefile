@@ -29,5 +29,5 @@ reinstall: setup.bin
 
 clean:
 	@ocamlbuild -clean
-	@rm -f setup.data setup.log setup.bin
+	@rm -f setup.data setup.log setup.bin test.iso
 

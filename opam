@@ -15,6 +15,7 @@ remove: [
 build-test: [
   ["ocaml" "setup.ml" "-configure" "--enable-tests"]
   ["ocaml" "setup.ml" "-build"]
+  ["lib_test/mkiso.sh"]
   ["ocaml" "setup.ml" "-test"]
 ]
 depends: [
