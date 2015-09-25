@@ -239,7 +239,7 @@ module Make (B: S.BLOCK_DEVICE
       let contents = List.map fst d.d_contents in
       return contents
 
-  module KV_RO : V1.KV_RO = struct
+  module KV_RO = struct
 
     type t = iso_t
 

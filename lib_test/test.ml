@@ -48,9 +48,9 @@ let th =
    Iso.connect b
    >>|= fun iso ->
    print "/" iso.Iso.entries;
-   Iso.size iso "/hello.txt"
+   Iso.KV_RO.size iso "/hello.txt"
    >>|= fun size ->
-   Iso.read iso "/hello.txt" 0 (Int64.to_int size)
+   Iso.KV_RO.read iso "/hello.txt" 0 (Int64.to_int size)
    >>|= fun result ->
    List.iter (fun x -> Printf.printf "%s" (Cstruct.to_string x)) result;
    Lwt.return (`Ok ())
