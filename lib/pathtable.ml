@@ -132,9 +132,10 @@ let print_directory d =
   List.iter (fun (k,v) -> Printf.printf "%s: %s\t" k v) fields
 
 let get_filename d =
+  let base_iso_filename = Stringext.split ~on:';' d.filename |> List.hd in
   let filename = List.fold_left
       (fun acc s -> match s with | Susp.NM nm -> nm.Susp.Nm.filename | _ -> acc)
-      d.filename d.susp in
+      base_iso_filename d.susp in
   if List.mem Directory d.flags
   then begin
     match d.filename with
