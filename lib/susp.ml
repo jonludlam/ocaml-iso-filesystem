@@ -115,6 +115,28 @@ module Ce = struct
     Printf.printf "{ block_location=%ld; offset=%ld; length=%ld }" ce.block_location ce.offset ce.length
 end
 
+module Sp = struct
+  type t = {
+    skip : int;
+  }
+
+  cstruct sp {
+    uint8_t be;
+    uint8_t ef;
+    uint8_t skip;
+  } as little_endian
+
+  let unmarshal v =
+    let be = get_sp_be v in
+    let ef = get_sp_ef v in
+    let skip = get_sp_skip v in
+    if be <> 0xbe || ef <> 0xef then failwith "Not rock ridge";
+    { skip }
+
+  let print sp =
+    Printf.printf "{ skip=%x }" sp.skip
+end
+
 module Tf = struct
   type ty =
     | Creation
@@ -175,6 +197,7 @@ type t =
   | PX of Px.t
   | CE of Ce.t
   | TF of Tf.t
+  | SP of Sp.t
   | Unhandled of unhandled_entry
 
 type error = [ `Invalid_SUSP_entry ]
