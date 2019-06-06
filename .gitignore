@@ -3,3 +3,6 @@ setup.bin
 setup.data
 setup.log
 test.native
+.merlin
+iso-filesystem.install
+
