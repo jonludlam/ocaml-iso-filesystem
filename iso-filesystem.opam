@@ -1,22 +1,18 @@
-opam-version: "1.2"
+opam-version: "2.0"
 name: "iso-filesystem"
 version: "0.1"
 maintainer: "opam-devel@lists.ocaml.org"
 authors: [ "Jon Ludlam" ]
 license: "ISC"
-build: [
-  ["ocaml" "setup.ml" "-configure" "--prefix" prefix]
-  ["ocaml" "setup.ml" "-build"]
-]
-install: ["ocaml" "setup.ml" "-install"]
+homepage: "https://github.com/jonludlam/ocaml-iso-filesystem"
+dev-repo: "git+https://github.com/jonludlam/ocaml-iso-filesystem.git"
+bug-reports: "https://github.com/jonludlam/ocaml-iso-filesystem/issues"
+synopsis: "ISO9660 filesystem library for OCaml"
+
+build: ["dune" "build"]
+install: ["dune" "install"]
 remove: [
   ["ocamlfind" "remove" "iso-filesystem"]
-]
-build-test: [
-  ["ocaml" "setup.ml" "-configure" "--enable-tests"]
-  ["ocaml" "setup.ml" "-build"]
-  ["lib_test/mkiso.sh"]
-  ["ocaml" "setup.ml" "-test"]
 ]
 depends: [
   "cstruct"

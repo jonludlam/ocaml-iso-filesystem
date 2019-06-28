@@ -1,5 +1,0 @@
-PKG lwt cstruct mirage-block-unix ounit io-page stringext
-S lib
-S lib_test
-B _build/lib
-B _build/lib_test
